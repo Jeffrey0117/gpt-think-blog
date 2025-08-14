@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GPT Think Blog
 
-## Getting Started
+一個用來記錄跟 GPT 互動時的人生反思、點子、領悟。
 
-First, run the development server:
+## 部署到 Vercel
+
+### 第一次部署
+
+1. 推到 GitHub: `git push`
+2. 去 [Vercel](https://vercel.com) 登入
+3. 選擇 "Import Project" 然後選你的 GitHub repo
+4. 設定環境變數：
+   - Key: `HACKMD_API_KEY`
+   - Value: `你的HackMD API金鑰`
+5. Deploy 就完成了
+
+### 更新部署
+
+直接推 code 就會自動重新部署：
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git add .
+git commit -m "更新內容"
+git push
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 新增文章
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 方法一：在 HackMD 寫新文章
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. 去 HackMD 寫文章
+2. 複製文章 ID（網址最後那串）
+3. 把 ID 加到 `src/data/noteIds.json`
+4. Push 上去
 
-## Learn More
+### 方法二：直接更新現有文章
 
-To learn more about Next.js, take a look at the following resources:
+在 HackMD 編輯文章，過 10 分鐘快取就會更新
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 開發環境
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# 安裝
+npm install
 
-## Deploy on Vercel
+# 設定 .env.local
+HACKMD_API_KEY=你的金鑰
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# 跑起來
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 技術說明
+
+- Next.js 15 + TypeScript + Tailwind
+- 從 HackMD API 抓文章
+- 有快取 10 分鐘
+- 無限滾動每次載入 5 篇
+- 支援 Markdown 和程式碼高亮
+
+**GPT Think Blog** - 就是個記錄想法的地方
