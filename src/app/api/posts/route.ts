@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import noteIds from "@/data/noteIds.json";
+import fs from "fs";
+import path from "path";
 
 // 定義文章類型
 interface Post {
@@ -9,29 +11,64 @@ interface Post {
   createdAt: string;
   updatedAt: string;
   excerpt: string;
-}
-
-// HackMD API 回應類型
-interface HackMDNote {
-  title: string;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
   content: string;
 }
 
-// Memory cache for posts
-let postsCache: Post[] | null = null;
-let cacheTimestamp = 0;
-const CACHE_DURATION = 10 * 60 * 1000; // 10 分鐘快取
+// 定義快取資料類型
+interface CacheData {
+  posts: Post[];
+  lastUpdated: number;
+}
+
+// 記憶體快取
+let memoryCache: { posts: Post[]; lastUpdated: number } | null = null;
+const CACHE_DURATION = 60 * 60 * 1000; // 1 小時
+
+// 嘗試讀取靜態資料
+function tryReadStaticData(): CacheData | null {
+  try {
+    const staticDataPath = path.join(process.cwd(), "src", "data", "posts.json");
+    if (fs.existsSync(staticDataPath)) {
+      const data = fs.readFileSync(staticDataPath, "utf-8");
+      const parsed = JSON.parse(data);
+      console.log('📁 找到靜態資料檔案，包含', parsed.posts?.length || 0, '篇文章');
+      return parsed;
+    }
+  } catch (error) {
+    console.log('⚠️ 讀取靜態資料時出錯:', error);
+  }
+  return null;
+}
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
+    // 首先嘗試使用靜態資料
+    const staticData = tryReadStaticData();
+    if (staticData && staticData.posts.length > 0) {
+      console.log('🚀 使用靜態資料');
+      const totalPosts = staticData.posts.length;
+      const paginatedPosts = staticData.posts.slice(skip, skip + limit);
+      const hasMore = skip + limit < totalPosts;
+
+      return NextResponse.json({
+        posts: paginatedPosts,
+        pagination: {
+          page,
+          limit,
+          total: totalPosts,
+          hasMore
+        }
+      });
+    }
+
+    // 如果沒有靜態資料，使用原本的 API 邏輯
+    console.log('📡 使用 API 模式（建議設定 GitHub Actions 來生成靜態資料）');
+    
     const apiKey = process.env.HACKMD_API_KEY;
 
     if (!apiKey) {
@@ -41,12 +78,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 檢查快取
+    // 檢查記憶體快取
     const now = Date.now();
-    if (postsCache && now - cacheTimestamp < CACHE_DURATION) {
-      console.log("📦 Using cached posts data");
-      const totalPosts = postsCache.length;
-      const paginatedPosts = postsCache.slice(skip, skip + limit);
+    if (memoryCache && (now - memoryCache.lastUpdated < CACHE_DURATION)) {
+      console.log('📂 Using cached data');
+      const totalPosts = memoryCache.posts.length;
+      const paginatedPosts = memoryCache.posts.slice(skip, skip + limit);
       const hasMore = skip + limit < totalPosts;
 
       return NextResponse.json({
@@ -55,104 +92,106 @@ export async function GET(request: NextRequest) {
           page,
           limit,
           total: totalPosts,
-          hasMore,
-        },
+          hasMore
+        }
       });
     }
 
-    console.log("🔄 Fetching fresh posts data from HackMD...");
+    console.log(`📡 Fetching fresh data for page ${page}`);
 
-    // 更積極的批次處理和並發限制
-    const batchSize = 3; // 降低到 3 個同時請求
-    const allResults = [];
+    // 批次處理 API 請求
+    const batchSize = 5;
+    const allPosts: Post[] = [];
+    const errors: string[] = [];
 
     for (let i = 0; i < noteIds.noteIds.length; i += batchSize) {
       const batch = noteIds.noteIds.slice(i, i + batchSize);
-      const batchNum = Math.floor(i / batchSize) + 1;
+      
       const totalBatches = Math.ceil(noteIds.noteIds.length / batchSize);
+      const currentBatch = Math.floor(i / batchSize) + 1;
+      console.log(`📦 Processing batch ${currentBatch}/${totalBatches} (${batch.length} notes)`);
 
-      console.log(
-        `⏳ Processing batch ${batchNum}/${totalBatches} (${batch.length} requests)`
-      );
+      // 同時處理批次中的所有請求
+      const batchPromises = batch.map(async (noteId: string) => {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const batchResults = await Promise.allSettled(
-        batch.map(async (noteId) => {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超時
+          const response = await fetch(`https://api.hackmd.io/v1/notes/${noteId}`, {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            signal: controller.signal
+          });
 
-            const response = await fetch(
-              `https://api.hackmd.io/v1/notes/${noteId}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${apiKey}`,
-                  "Content-Type": "application/json",
-                },
-                signal: controller.signal,
-                next: { revalidate: 600 }, // 10分鐘 revalidate
-              }
-            );
+          clearTimeout(timeoutId);
 
-            clearTimeout(timeoutId);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
 
-            if (!response.ok) {
-              console.error(
-                `❌ Failed to fetch note ${noteId}: ${response.status}`
-              );
-              return null;
-            }
-
-            const note = await response.json() as HackMDNote;
-
-            // 只返回必要的資訊給前端
-            return {
-              id: noteId,
-              title: note.title || "Untitled",
-              tags: note.tags || [],
-              createdAt: note.createdAt,
-              updatedAt: note.updatedAt,
-              // 從內容中提取前幾行當作摘要
-              excerpt: note.content
-                ? note.content.substring(0, 200) + "..."
-                : "No content available",
-            } as Post;
-          } catch (error) {
-            console.error(`❌ Error fetching note ${noteId}:`, error);
+          const data = await response.json();
+          
+          // 過濾掉標題為空的文章
+          if (!data.title || data.title.trim() === '') {
             return null;
           }
-        })
-      );
 
-      allResults.push(...batchResults);
+          // 提取內容的前 200 個字符作為摘要
+          const contentPreview = data.content
+            ? data.content.replace(/[#*`\[\]()]/g, '').substring(0, 200) + '...'
+            : '';
 
-      // 在批次之間增加延遲，避免 API 限制
+          return {
+            id: noteId,
+            title: data.title,
+            tags: data.tags || [],
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+            excerpt: contentPreview,
+            content: data.content || ''
+          } as Post;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`❌ Error fetching note ${noteId}:`, errorMessage);
+          errors.push(`${noteId}: ${errorMessage}`);
+          return null;
+        }
+      });
+
+      // 等待當前批次完成
+      const batchResults = await Promise.all(batchPromises);
+      
+      // 只添加成功的結果
+      const validPosts = batchResults.filter((post): post is Post => post !== null);
+      allPosts.push(...validPosts);
+
+      // 在批次之間添加延遲以避免 rate limiting
       if (i + batchSize < noteIds.noteIds.length) {
-        console.log("⏸️  Waiting 1s before next batch...");
-        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        console.log('⏳ Waiting 1 second before next batch...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
 
-    // 過濾成功的請求
-    const successfulPosts = allResults
-      .filter(
-        (result: PromiseSettledResult<Post | null>) => result.status === "fulfilled" && result.value !== null
-      )
-      .map((result) => (result as PromiseFulfilledResult<Post | null>).value)
-      .filter((post: Post | null): post is Post => post !== null)
-      .sort(
-        (a: Post, b: Post) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
+    // 按更新時間排序（最新的在前）
+    allPosts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
+    // 更新記憶體快取
+    memoryCache = {
+      posts: allPosts,
+      lastUpdated: now
+    };
+
+    const successfulPosts = allPosts;
     console.log(
       `✅ Successfully fetched ${successfulPosts.length}/${noteIds.noteIds.length} posts`
     );
 
-    // 更新快取
-    postsCache = successfulPosts;
-    cacheTimestamp = now;
+    if (errors.length > 0) {
+      console.warn(`⚠️ ${errors.length} errors occurred:`, errors.slice(0, 5));
+    }
 
-    // 如果要分頁，從快取中取得指定範圍的資料
+    // 計算分頁
     const totalPosts = successfulPosts.length;
     const paginatedPosts = successfulPosts.slice(skip, skip + limit);
     const hasMore = skip + limit < totalPosts;
@@ -163,13 +202,26 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         total: totalPosts,
-        hasMore,
+        hasMore
       },
+      debug: {
+        totalFetched: successfulPosts.length,
+        errors: errors.length,
+        cacheUsed: false
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400'
+      }
     });
+
   } catch (error) {
-    console.error("Error fetching posts:", error);
+    console.error('❌ API Error:', error);
     return NextResponse.json(
-      { error: "Failed to fetch posts" },
+      { 
+        error: "Failed to fetch posts",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

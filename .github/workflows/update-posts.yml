@@ -1,0 +1,40 @@
+name: Update Blog Posts
+
+on:
+  schedule:
+    # 每 6 小時執行一次 (UTC 時間 00:00, 06:00, 12:00, 18:00)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # 允許手動觸發
+    
+jobs:
+  update-posts:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Generate posts data
+      env:
+        HACKMD_API_KEY: ${{ secrets.HACKMD_API_KEY }}
+      run: node scripts/update-posts.js
+      
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add src/data/posts.json
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "自動更新文章資料 $(date)"
+          git push
+        fi
