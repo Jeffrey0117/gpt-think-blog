@@ -18,21 +18,20 @@ async function getPost(id: string): Promise<Post | null> {
   try {
     // 決定 base URL
     let baseUrl = "http://localhost:3003"; // 本地開發使用正確的端口
-    
+
     if (process.env.VERCEL_URL) {
       baseUrl = `https://${process.env.VERCEL_URL}`;
     } else if (process.env.NODE_ENV === "production") {
-      baseUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}`;
+      baseUrl = `${
+        process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+      }`;
     }
 
-    console.log('🔗 Fetching post from:', `${baseUrl}/api/posts/${id}`);
+    console.log("🔗 Fetching post from:", `${baseUrl}/api/posts/${id}`);
 
-    const response = await fetch(
-      `${baseUrl}/api/posts/${id}`,
-      {
-        next: { revalidate: 3600 }, // 快取 1 小時而不是 no-store
-      }
-    );
+    const response = await fetch(`${baseUrl}/api/posts/${id}`, {
+      next: { revalidate: 3600 }, // 快取 1 小時而不是 no-store
+    });
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -42,7 +41,7 @@ async function getPost(id: string): Promise<Post | null> {
     }
 
     const post = await response.json();
-    console.log('✅ Post loaded:', post.title);
+    console.log("✅ Post loaded:", post.title);
     return post;
   } catch (error) {
     console.error("Error fetching post:", error);

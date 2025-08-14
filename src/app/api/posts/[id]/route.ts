@@ -26,18 +26,23 @@ interface StaticPost {
 // 嘗試從靜態資料讀取文章
 function tryReadStaticPost(id: string): StaticPost | null {
   try {
-    const staticDataPath = path.join(process.cwd(), "src", "data", "posts.json");
+    const staticDataPath = path.join(
+      process.cwd(),
+      "src",
+      "data",
+      "posts.json"
+    );
     if (fs.existsSync(staticDataPath)) {
       const data = fs.readFileSync(staticDataPath, "utf-8");
       const parsed = JSON.parse(data);
       const post = parsed.posts?.find((p: StaticPost) => p.id === id);
       if (post) {
-        console.log('📁 找到靜態文章:', post.title);
+        console.log("📁 找到靜態文章:", post.title);
         return post;
       }
     }
   } catch (error) {
-    console.log('⚠️ 讀取靜態文章時出錯:', error);
+    console.log("⚠️ 讀取靜態文章時出錯:", error);
   }
   return null;
 }
@@ -48,11 +53,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
+
     // 首先嘗試使用靜態資料
     const staticPost = tryReadStaticPost(id);
     if (staticPost) {
-      console.log('🚀 使用靜態文章資料');
+      console.log("🚀 使用靜態文章資料");
       return NextResponse.json({
         id: staticPost.id,
         title: staticPost.title,
@@ -64,8 +69,8 @@ export async function GET(
     }
 
     // 如果沒有靜態資料，使用 API 模式
-    console.log('📡 靜態資料中找不到文章，使用 API 模式');
-    
+    console.log("📡 靜態資料中找不到文章，使用 API 模式");
+
     const apiKey = process.env.HACKMD_API_KEY;
 
     if (!apiKey) {
