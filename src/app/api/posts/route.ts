@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import noteIds from "@/data/noteIds.json";
 
+// 定義文章類型
+interface Post {
+  id: string;
+  title: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  excerpt: string;
+}
+
+// HackMD API 回應類型
+interface HackMDNote {
+  title: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  content: string;
+}
+
 // Memory cache for posts
-let postsCache: any = null;
+let postsCache: Post[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION = 10 * 60 * 1000; // 10 分鐘快取
 
@@ -83,7 +102,7 @@ export async function GET(request: NextRequest) {
               return null;
             }
 
-            const note = await response.json();
+            const note = await response.json() as HackMDNote;
 
             // 只返回必要的資訊給前端
             return {
@@ -96,7 +115,7 @@ export async function GET(request: NextRequest) {
               excerpt: note.content
                 ? note.content.substring(0, 200) + "..."
                 : "No content available",
-            };
+            } as Post;
           } catch (error) {
             console.error(`❌ Error fetching note ${noteId}:`, error);
             return null;
@@ -109,19 +128,19 @@ export async function GET(request: NextRequest) {
       // 在批次之間增加延遲，避免 API 限制
       if (i + batchSize < noteIds.noteIds.length) {
         console.log("⏸️  Waiting 1s before next batch...");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
       }
     }
 
     // 過濾成功的請求
     const successfulPosts = allResults
       .filter(
-        (result: any) => result.status === "fulfilled" && result.value !== null
+        (result: PromiseSettledResult<Post | null>) => result.status === "fulfilled" && result.value !== null
       )
-      .map((result: any) => result.value)
-      .filter((post: any) => post !== null)
+      .map((result) => (result as PromiseFulfilledResult<Post | null>).value)
+      .filter((post: Post | null): post is Post => post !== null)
       .sort(
-        (a: any, b: any) =>
+        (a: Post, b: Post) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       );
 
