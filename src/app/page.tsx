@@ -25,16 +25,21 @@ async function getInitialData(): Promise<{
   posts: Post[];
   totalCount: number;
 }> {
-  // 在 build time，直接返回空數據，讓頁面能正常生成
-  if (typeof window === 'undefined' && !process.env.VERCEL_URL) {
-    return { posts: [], totalCount: 0 };
-  }
-
   try {
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : "http://localhost:3001";
-      
+    // 決定 base URL
+    let baseUrl = "http://localhost:3003"; // 預設本地開發
+
+    if (process.env.VERCEL_URL) {
+      baseUrl = `https://${process.env.VERCEL_URL}`;
+    } else if (process.env.NODE_ENV === "production") {
+      // 如果是 production 但沒有 VERCEL_URL，可能是其他部署平台
+      baseUrl = `${
+        process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+      }`;
+    }
+
+    console.log("🔗 Fetching initial data from:", baseUrl);
+
     const response = await fetch(
       `${baseUrl}/api/posts?page=1&limit=15`, // 獲取前15篇，足夠填滿首頁和側邊欄
       {
@@ -43,10 +48,12 @@ async function getInitialData(): Promise<{
     );
 
     if (!response.ok) {
+      console.error(`❌ HTTP Error: ${response.status} ${response.statusText}`);
       throw new Error("Failed to fetch posts");
     }
 
     const data: PostsResponse = await response.json();
+    console.log("✅ Successfully loaded", data.posts.length, "posts");
     return { posts: data.posts, totalCount: data.pagination.total };
   } catch (error) {
     console.error("Error fetching posts:", error);

@@ -233,7 +233,10 @@ export default function InfinitePostList() {
 }
 
 // 節流函數
-function throttle<T extends (...args: unknown[]) => void>(func: T, limit: number) {
+function throttle<T extends (...args: unknown[]) => void>(
+  func: T,
+  limit: number
+) {
   let inThrottle: boolean;
   return function (this: unknown, ...args: Parameters<T>) {
     if (!inThrottle) {

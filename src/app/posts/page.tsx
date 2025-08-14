@@ -24,29 +24,26 @@ interface PostsResponse {
 
 async function getInitialPosts(): Promise<PostsResponse> {
   // 在 build time，直接返回空數據，讓頁面能正常生成
-  if (typeof window === 'undefined' && !process.env.VERCEL_URL) {
+  if (typeof window === "undefined" && !process.env.VERCEL_URL) {
     return {
       posts: [],
       pagination: {
         page: 1,
         limit: 5,
         total: 0,
-        hasMore: false
-      }
+        hasMore: false,
+      },
     };
   }
 
   try {
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3001";
-    
-    const response = await fetch(
-      `${baseUrl}/api/posts?page=1&limit=5`,
-      {
-        next: { revalidate: 300 }, // 5 分鐘重新驗證，而不是 no-store
-      }
-    );
+
+    const response = await fetch(`${baseUrl}/api/posts?page=1&limit=5`, {
+      next: { revalidate: 300 }, // 5 分鐘重新驗證，而不是 no-store
+    });
 
     if (!response.ok) {
       throw new Error("Failed to fetch posts");

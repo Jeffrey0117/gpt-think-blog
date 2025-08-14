@@ -40,7 +40,7 @@ export async function GET(
       throw new Error("Failed to fetch note");
     }
 
-    const note = await response.json() as HackMDNote;
+    const note = (await response.json()) as HackMDNote;
 
     return NextResponse.json({
       id,

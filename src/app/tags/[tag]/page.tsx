@@ -12,21 +12,18 @@ interface Post {
 
 async function getPosts(): Promise<Post[]> {
   // 在 build time，直接返回空數據
-  if (typeof window === 'undefined' && !process.env.VERCEL_URL) {
+  if (typeof window === "undefined" && !process.env.VERCEL_URL) {
     return [];
   }
 
   try {
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3001";
-      
-    const response = await fetch(
-      `${baseUrl}/api/posts`,
-      {
-        next: { revalidate: 300 }, // 5 分鐘重新驗證
-      }
-    );
+
+    const response = await fetch(`${baseUrl}/api/posts`, {
+      next: { revalidate: 300 }, // 5 分鐘重新驗證
+    });
 
     if (!response.ok) {
       throw new Error("Failed to fetch posts");
@@ -41,7 +38,11 @@ async function getPosts(): Promise<Post[]> {
   }
 }
 
-export default async function TagPage({ params }: { params: Promise<{ tag: string }> }) {
+export default async function TagPage({
+  params,
+}: {
+  params: Promise<{ tag: string }>;
+}) {
   const { tag } = await params;
   const allPosts = await getPosts();
 
