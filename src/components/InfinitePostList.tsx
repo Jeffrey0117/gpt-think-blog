@@ -233,9 +233,9 @@ export default function InfinitePostList() {
 }
 
 // 節流函數
-function throttle(func: Function, limit: number) {
+function throttle<T extends (...args: unknown[]) => void>(func: T, limit: number) {
   let inThrottle: boolean;
-  return function (this: any, ...args: any[]) {
+  return function (this: unknown, ...args: Parameters<T>) {
     if (!inThrottle) {
       func.apply(this, args);
       inThrottle = true;

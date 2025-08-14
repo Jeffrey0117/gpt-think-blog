@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// HackMD API 回應類型
+interface HackMDNote {
+  title: string;
+  content: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  publishType: string;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -30,7 +40,7 @@ export async function GET(
       throw new Error("Failed to fetch note");
     }
 
-    const note = await response.json();
+    const note = await response.json() as HackMDNote;
 
     return NextResponse.json({
       id,
