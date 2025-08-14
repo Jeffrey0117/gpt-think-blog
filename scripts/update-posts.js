@@ -57,6 +57,8 @@ async function fetchPosts() {
             tags: note.tags || [],
             createdAt: note.createdAt,
             updatedAt: note.updatedAt,
+            // 儲存完整內容而不只是摘要
+            content: note.content || "No content available",
             excerpt: note.content
               ? note.content.substring(0, 200) + "..."
               : "No content available",

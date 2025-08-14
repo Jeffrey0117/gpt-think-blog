@@ -16,14 +16,21 @@ interface Post {
 
 async function getPost(id: string): Promise<Post | null> {
   try {
+    // 決定 base URL
+    let baseUrl = "http://localhost:3003"; // 本地開發使用正確的端口
+    
+    if (process.env.VERCEL_URL) {
+      baseUrl = `https://${process.env.VERCEL_URL}`;
+    } else if (process.env.NODE_ENV === "production") {
+      baseUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}`;
+    }
+
+    console.log('🔗 Fetching post from:', `${baseUrl}/api/posts/${id}`);
+
     const response = await fetch(
-      `${
-        process.env.VERCEL_URL
-          ? "https://" + process.env.VERCEL_URL
-          : "http://localhost:3000"
-      }/api/posts/${id}`,
+      `${baseUrl}/api/posts/${id}`,
       {
-        cache: "no-store",
+        next: { revalidate: 3600 }, // 快取 1 小時而不是 no-store
       }
     );
 
@@ -34,7 +41,9 @@ async function getPost(id: string): Promise<Post | null> {
       throw new Error("Failed to fetch post");
     }
 
-    return response.json();
+    const post = await response.json();
+    console.log('✅ Post loaded:', post.title);
+    return post;
   } catch (error) {
     console.error("Error fetching post:", error);
     return null;
