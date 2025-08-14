@@ -11,15 +11,20 @@ interface Post {
 }
 
 async function getPosts(): Promise<Post[]> {
+  // 在 build time，直接返回空數據
+  if (typeof window === 'undefined' && !process.env.VERCEL_URL) {
+    return [];
+  }
+
   try {
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : "http://localhost:3001";
+      
     const response = await fetch(
-      `${
-        process.env.VERCEL_URL
-          ? "https://" + process.env.VERCEL_URL
-          : "http://localhost:3000"
-      }/api/posts`,
+      `${baseUrl}/api/posts`,
       {
-        cache: "no-store",
+        next: { revalidate: 300 }, // 5 分鐘重新驗證
       }
     );
 
@@ -27,7 +32,9 @@ async function getPosts(): Promise<Post[]> {
       throw new Error("Failed to fetch posts");
     }
 
-    return response.json();
+    const data = await response.json();
+    // 如果 API 回傳分頁格式，提取 posts；否則直接使用
+    return Array.isArray(data) ? data : data.posts || [];
   } catch (error) {
     console.error("Error fetching posts:", error);
     return [];

@@ -25,13 +25,18 @@ async function getInitialData(): Promise<{
   posts: Post[];
   totalCount: number;
 }> {
+  // 在 build time，直接返回空數據，讓頁面能正常生成
+  if (typeof window === 'undefined' && !process.env.VERCEL_URL) {
+    return { posts: [], totalCount: 0 };
+  }
+
   try {
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : "http://localhost:3001";
+      
     const response = await fetch(
-      `${
-        process.env.VERCEL_URL
-          ? "https://" + process.env.VERCEL_URL
-          : "http://localhost:3001"
-      }/api/posts?page=1&limit=15`, // 獲取前15篇，足夠填滿首頁和側邊欄
+      `${baseUrl}/api/posts?page=1&limit=15`, // 獲取前15篇，足夠填滿首頁和側邊欄
       {
         next: { revalidate: 300 }, // 5 分鐘快取
       }
