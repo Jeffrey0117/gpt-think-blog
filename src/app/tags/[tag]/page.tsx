@@ -34,7 +34,7 @@ async function getPosts(): Promise<Post[]> {
   }
 }
 
-export default async function TagPage({ params }: { params: { tag: string } }) {
+export default async function TagPage({ params }: { params: Promise<{ tag: string }> }) {
   const { tag } = await params;
   const allPosts = await getPosts();
 
